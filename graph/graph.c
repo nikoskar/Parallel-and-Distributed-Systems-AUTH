@@ -74,29 +74,37 @@ void coo2csc(
 }
 
 
-int checkifone(int x, int y, uint32_t *row, uint32_t *col) {
-	uint32_t start = col[y];
-	uint32_t end = col[y+1];
-	uint32_t size = end - start;
-	uint32_t count = 0;
-	uint32_t *sliced = (uint32_t *)malloc(size*sizeof(uint32_t));
+// uint32_t checkifone(int x, int y, uint32_t *row, uint32_t *col) {
+// 	uint32_t start = col[y];
+// 	uint32_t end = col[y+1];
+// 	uint32_t size = end - start;
+// 	uint32_t *sliced = (uint32_t *)malloc(size * sizeof(uint32_t));
+// 	uint32_t count = 0;
+// 	for (int i = start; i < end; i++) {
+// 		sliced[count] = row[i];
+// 		count++;
+// 	}
+//
+// 	for(int i = 0; i < size; i++) {
+// 		if (x == sliced[i]) {
+// 			return 1;
+// 		}
+// 	}
+//
+// 	return 0;
+// }
 
-	for (int i = start; i < end; i++) {
-		sliced[count] = row[i];
-		count++;
-	}
 
-
-
-	for(int i = 0; i < size; i++) {
-		if (x == sliced[i]) {
-			return 1;
-		}
-	}
-
+uint32_t checkifone(int x, int y, uint32_t *row, uint32_t *col) {
+	uint32_t nz = col[j+1] + col[j];
+	uint32_t counter = 0;
+	do {
+		if (row[col[y] + counter] == x) return 1;
+		if (row[col[y] + counter] > x) return 0;
+		counter++;
+	} while (nz > x)
 	return 0;
 }
-
 
 
 int main(int argc, char *argv[]) {
@@ -151,11 +159,10 @@ int main(int argc, char *argv[]) {
 
 
 
-	int *c3 = (int *)malloc(M*sizeof(int));
+	int *c3 = (int *)malloc(sizeof(int)*M);
 	for (int i = 0; i < M; i++) {
 		c3[i] = 0;
 	}
-
 	int **arr = buildGraph();
 	long elapsed_sec, elapsed_nsec, elapsed_sec1, elapsed_nsec1;
 	struct timespec ts_start, ts_end, ts_start1, ts_end1;
@@ -174,20 +181,13 @@ int main(int argc, char *argv[]) {
 	// OPTIMIZED VERSION
 	clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
-	for (int i = 0; i < M; i++) {
-		for (int j = 0; j < M; j++) {
-			if(i >= j) {
-				continue;
-			}
-			for (int k = 0; k < M; k++) {
-				if(j >= k) {
-					continue;
-				}
+	for (int i = 1; i < M - 2; i++) {
+		for (int j = i + 1; j < M - 1; j++) {
+			for (int k = j + 1; k < M; k++) {
 				uint32_t temp1, temp2, temp3;
 				temp1 = checkifone(i, j, csc_row, csc_col);
 				temp2 = checkifone(j, k, csc_row, csc_col);
 				temp3 = checkifone(k, i, csc_row, csc_col);
-
 				//arr[i][j] == arr[j][k] == arr[k][i] == 1
 				if (temp1 & temp2 & temp3) {
 					c3[i]++;
@@ -197,19 +197,15 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	 clock_gettime(CLOCK_MONOTONIC, &ts_end);
-	//
-	// // SLOW VERSION
+	clock_gettime(CLOCK_MONOTONIC, &ts_end);
+
+	// SLOW VERSION
 	// clock_gettime(CLOCK_MONOTONIC, &ts_start1);
 	// for (int i = 0; i < M; i++) {
 	// 	for (int j = 0; j < M; j++) {
 	// 		for (int k = 0; k < M; k++) {
 	// 			//if ( arr[i][j] == arr[j][k] == arr[k][i] == 1) {
-	// 			uint32_t temp1, temp2, temp3;
-	// 			temp1 = checkifone(i, j, csc_row, csc_col);
-	// 			temp2 = checkifone(j, k, csc_row, csc_col);
-	// 			temp3 = checkifone(k, i, csc_row, csc_col);
-	// 			if (temp1 & temp2 & temp3) {
+	// 			if (arr[i][j] == arr[j][k] && arr[j][k] == arr[k][i] && arr[k][i] == 1) {
 	// 				c3[i]++;
 	// 				c3[j]++;
 	// 				c3[k]++;
