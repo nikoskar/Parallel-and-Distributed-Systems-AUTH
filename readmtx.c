@@ -184,6 +184,12 @@ int main(int argc, char *argv[])
 			c3[i] = 0;
 		}
 
+		long elapsed_sec, elapsed_nsec;
+		struct timespec ts_start, ts_end;
+
+		/* Start counting triangles */
+		clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
     for(uint32_t j = 0; j < N - 1; j++) {
 
 
@@ -209,30 +215,60 @@ int main(int argc, char *argv[])
         uint32_t start1 = csc_col[csc_row[i]];
         uint32_t end1 = csc_col[csc_row[i] + 1];
 				//printf("in i = %d with start = %d and end = %d", i, start1, end1);
-				//printf("\n i = %d", csc_row[i]);
+				//printf("\n ---i = %d", csc_row[i]);
         for(uint32_t k = start1; k < end1; k++) {
-					for(uint32_t x = 0; x < size; x++)
-					{
-						if(csc_row[k] == log[x]) {
-							c3[csc_row[k]]++;
-							c3[csc_row[j]]++;
-							c3[csc_row[i]]++;
-							//printf("triangle found\n");
+					//printf("\n ------k = %d (j = %d, i = %d)", csc_row[k], j, csc_row[i]);
+
+					if(csc_row[k]) {
+						for(uint32_t x = 0; x < size; x++)
+						{
+							if(csc_row[k] == log[x]) {
+								//printf("\n ------k = %d (j = %d, i = %d)", csc_row[k], j, csc_row[i]);
+								c3[csc_row[k]]++;
+								c3[j]++;
+								c3[csc_row[i]]++;
+								//printf("\ntriangle found\n");
+							}
 						}
 					}
+					// for(uint32_t x = 0; x < size; x++)
+					// {
+					// 	if(csc_row[k] == log[x]) {
+					// 		c3[csc_row[k]]++;
+					// 		c3[csc_row[j]]++;
+					// 		c3[csc_row[i]]++;
+					// 		//printf("triangle found\n");
+					// 	}
+					// }
         }
+				//printf("\n");
       }
+			//printf("\n");
 			free(log);
 
     }
-		for (uint32_t i = 0; i < N; i++) {
-			printf("node %d has %d triangles\n", i, c3[i]);
+
+		clock_gettime(CLOCK_MONOTONIC, &ts_end);
+
+		elapsed_sec = ts_end.tv_sec - ts_start.tv_sec;
+
+		if ((ts_end.tv_nsec - ts_start.tv_nsec) < 0) {
+		  elapsed_nsec = 1000000000 + ts_end.tv_nsec - ts_start.tv_nsec;
+		} else {
+		  elapsed_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
 		}
+
+		printf("\nOverall elapsed time: %f\n", elapsed_sec + (double)elapsed_nsec/1000000000);
+
+		// for (uint32_t i = 0; i < N; i++) {
+		// 	printf("node %d has %d triangles\n", i, c3[i]);
+		// }
 		free(c3);
-
-
-
-	return 0;
+		free(I);
+		free(J);
+		free(csc_col);
+		free(csc_row);
+		return 0;
 }
 
 
