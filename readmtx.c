@@ -74,8 +74,8 @@ int main(int argc, char *argv[])
     int ret_code;
     MM_typecode matcode;
     FILE *f;
-    uint32_t M, N, nz;
-    uint32_t i, *I, *J;
+    int M, N, nz;
+    int i, *I, *J;
     double *val;
 
     if (argc < 2)
@@ -114,8 +114,8 @@ int main(int argc, char *argv[])
 
     /* reseve memory for matrices */
 
-    I = (uint32_t *) malloc(nz * sizeof(uint32_t));
-    J = (uint32_t *) malloc(nz * sizeof(uint32_t));
+    I = (int *) malloc(nz * sizeof(int));
+    J = (int *) malloc(nz * sizeof(int));
     val = (double *) malloc(nz * sizeof(double));
 
 
@@ -155,71 +155,81 @@ int main(int argc, char *argv[])
 
     mm_write_banner(stdout, matcode);
     mm_write_mtx_crd_size(stdout, M, N, nz);
-    for (i=0; i<nz; i++)
-        fprintf(stdout, "%d %d %20.19g\n", I[i]+1, J[i]+1, val[i]);
+    // for (i=0; i<nz; i++)
+    //     fprintf(stdout, "%d %d %20.19g\n", I[i]+1, J[i]+1, val[i]);
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
 
 
-
-    uint32_t *csc_row = (uint32_t*)malloc(nz     * sizeof(uint32_t));
-    uint32_t *csc_col = (uint32_t*)malloc((N + 1) * sizeof(uint32_t));
-
-		for(int i = 0; i < nz; i++) {
-			csc_row[i] = 0;
-		}
-
-		for(int i = 0; i < N + 1; i++) {
-			csc_col[i] = 0;
-		}
+    uint32_t * csc_row = (uint32_t *)malloc(nz     * sizeof(uint32_t));
+    uint32_t * csc_col = (uint32_t *)malloc((N + 1) * sizeof(uint32_t));
 
     coo2csc(csc_row, csc_col, I, J, nz, N, 0);
 
-    printf("csc_row: \n\n");
-    for(int i = 0; i < nz; i++) {
-      printf("%d, ", csc_row[i]);
-    }
-		printf("2222222222222222222222222222222222222222222222222222222222222222222222");
+    // printf("csc_row: \n\n");
+    // for(int i = 0; i < nz; i++) {
+    //   printf("%d, ", csc_row[i]);
+    // }
+		//
+    // printf("csc_col: \n\n");
+    // for(int i = 0; i < N + 1; i++) {
+    //   printf("%d, ", csc_col[i]);
+    // }
 
-    printf("csc_col: \n\n");
-    for(int i = 0; i < N + 1; i++) {
-      printf("%d, ", csc_col[i]);
-    }
+		uint32_t *c3 = malloc(N*sizeof(uint32_t));
+		for (uint32_t i = 0; i < N; i++) {
+			c3[i] = 0;
+		}
 
-    // long elapsed_sec, elapsed_nsec;
-  	// struct timespec ts_start, ts_end;
-    //uint32_t *c3 = malloc(N*sizeof(uint32_t));
+    for(uint32_t j = 0; j < N - 1; j++) {
 
-
-    //clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    for(uint32_t j = 0; j < N - 1; i++) {
 
       uint32_t start = csc_col[j];
       uint32_t end = csc_col[j + 1];
+			uint32_t idx = 0;
+			uint32_t size = end - start;
 
+			uint32_t *log = malloc(size*sizeof(uint32_t));
+
+			//printf("\n\n");
+			//printf("j: %d has these zeros: ", j);
+
+			for(uint32_t pos = start; pos < end; pos++) {
+				log[idx] = csc_row[pos];
+				//printf("%d, ", log[idx]);
+				idx++;
+			}
+			//printf("\n\n");
 
       for(uint32_t i = start; i < end; i++) {
 
         uint32_t start1 = csc_col[csc_row[i]];
         uint32_t end1 = csc_col[csc_row[i] + 1];
-
+				//printf("in i = %d with start = %d and end = %d", i, start1, end1);
+				//printf("\n i = %d", csc_row[i]);
         for(uint32_t k = start1; k < end1; k++) {
-
+					for(uint32_t x = 0; x < size; x++)
+					{
+						if(csc_row[k] == log[x]) {
+							c3[csc_row[k]]++;
+							c3[csc_row[j]]++;
+							c3[csc_row[i]]++;
+							//printf("triangle found\n");
+						}
+					}
         }
       }
+			free(log);
+
     }
-		free(csc_col);
-		free(csc_row);
-		free(val);
+		for (uint32_t i = 0; i < N; i++) {
+			printf("node %d has %d triangles\n", i, c3[i]);
+		}
+		free(c3);
 
-    //clock_gettime(CLOCK_MONOTONIC, &ts_end);
-
-    // elapsed_sec = ts_end.tv_sec - ts_start.tv_sec;
-    //
-    // if ((ts_end.tv_nsec - ts_start.tv_nsec) < 0) {
-    //   elapsed_nsec = 1000000000 + ts_end.tv_nsec - ts_start.tv_nsec;
-    // } else {
-    //   elapsed_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
-    // }
-    // printf("Overall elapsed time: %f\n", elapsed_sec + (double)elapsed_nsec/1000000000);
 
 
 	return 0;

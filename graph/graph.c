@@ -30,83 +30,6 @@ int** buildGraph() {
 	return adj;
 }
 
-void coo2csc(
-  uint32_t       * const row,       /*!< CSC row start indices */
-  uint32_t       * const col,       /*!< CSC column indices */
-  uint32_t const * const row_coo,   /*!< COO row indices */
-  uint32_t const * const col_coo,   /*!< COO column indices */
-  uint32_t const         nnz,       /*!< Number of nonzero elements */
-  uint32_t const         n,         /*!< Number of rows/columns */
-  uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
-) {
-
-
-  // ----- cannot assume that input is already 0!
-  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
-
-  // ----- find the correct column sizes
-  for (uint32_t l = 0; l < nnz; l++)
-    col[col_coo[l] - isOneBased]++;
-
-  // ----- cumulative sum
-  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = cumsum;
-    cumsum += temp;
-  }
-  col[n] = nnz;
-  // ----- copy the row indices to the correct place
-  for (uint32_t l = 0; l < nnz; l++) {
-    uint32_t col_l;
-    col_l = col_coo[l] - isOneBased;
-
-    uint32_t dst = col[col_l];
-    row[dst] = row_coo[l] - isOneBased;
-
-    col[col_l]++;
-  }
-  // ----- revert the column pointers
-  for (uint32_t i = 0, last = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = last;
-    last = temp;
-  }
-}
-
-
-// uint32_t checkifone(int x, int y, uint32_t *row, uint32_t *col) {
-// 	uint32_t start = col[y];
-// 	uint32_t end = col[y+1];
-// 	uint32_t size = end - start;
-// 	uint32_t *sliced = (uint32_t *)malloc(size * sizeof(uint32_t));
-// 	uint32_t count = 0;
-// 	for (int i = start; i < end; i++) {
-// 		sliced[count] = row[i];
-// 		count++;
-// 	}
-//
-// 	for(int i = 0; i < size; i++) {
-// 		if (x == sliced[i]) {
-// 			return 1;
-// 		}
-// 	}
-//
-// 	return 0;
-// }
-
-
-uint32_t checkifone(int x, int y, uint32_t *row, uint32_t *col) {
-	uint32_t nz = col[j+1] + col[j];
-	uint32_t counter = 0;
-	do {
-		if (row[col[y] + counter] == x) return 1;
-		if (row[col[y] + counter] > x) return 0;
-		counter++;
-	} while (nz > x)
-	return 0;
-}
-
-
 int main(int argc, char *argv[]) {
 
 	int ret_code;
@@ -169,12 +92,12 @@ int main(int argc, char *argv[]) {
 
 	printf("\n########## ADJ MATRIX ##########\n\n");
 
-	// for (int i = 0; i < NUM_NODES; i++) {
-	// 	for (int j = 0; j < NUM_NODES; j++) {
-	// 		printf(" %d",arr[i][j]);
-	// 	}
-	// 	printf("\n");
-	// }
+	for (int i = 0; i < NUM_NODES; i++) {
+		for (int j = 0; j < NUM_NODES; j++) {
+			printf(" %d",arr[i][j]);
+		}
+		printf("\n");
+	}
 
 	printf ("\n################################\n\n");
 
