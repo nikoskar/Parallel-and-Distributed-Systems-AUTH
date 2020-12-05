@@ -38,8 +38,9 @@ int main(int argc, char *argv[])
     int ret_code;
     uint32_t *I, *J;
     MM_typecode matcode;
-    uint32_t M, N, nz, sum, count = 0, flag = 1;
-
+    uint32_t M, N, nz, sum;
+    long elapsed_sec, elapsed_nsec;
+    struct timespec ts_start, ts_end;
 		struct timeval ts_start, ts_end;
 
     if (argc < 2)
@@ -146,11 +147,10 @@ int main(int argc, char *argv[])
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
     int rc;;
-
-
-
     ARRINFO arr_info[NUM_THREADS];
-    gettimeofday(&ts_start,NULL);
+
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    //gettimeofday(&ts_start,NULL);
 
     for(uint32_t i = 0; i < NUM_THREADS ; i++) {
 
@@ -223,10 +223,21 @@ int main(int argc, char *argv[])
 
 
 
-    gettimeofday(&ts_end,NULL);
-    double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
+    // gettimeofday(&ts_end,NULL);
+    // double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
+		// printf("\nOverall elapsed time: %f\n", elapsed);
 
-		printf("\nOverall elapsed time: %f\n", elapsed);
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    elapsed_sec = ts_end.tv_sec - ts_start.tv_sec;
+
+    if ((ts_end.tv_nsec - ts_start.tv_nsec) < 0) {
+       elapsed_nsec = 1000000000 + ts_end.tv_nsec - ts_start.tv_nsec;
+    } else {
+      elapsed_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
+    }
+
+    printf("\n   Overall elapsed time: %f <---\n", elapsed_sec + (double)elapsed_nsec/1000000000);
+
 
     free(I);
     free(J);
