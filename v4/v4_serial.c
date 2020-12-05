@@ -5,55 +5,24 @@
 #include <sys/time.h>
 #include "mmio.h"
 
-/* The following program reads an undirected, unweighted random graph (Matrix Market file format), 
- * represented by its adjacency matrix (sparse) and counts the triangles incident with each node 
- * using the formula ((A .* (A*A)) * e) / 2. 
+/* The following program reads an undirected, unweighted random graph (Matrix Market file format),
+ * represented by its adjacency matrix (sparse) and counts the triangles incident with each node
+ * using the formula ((A .* (A*A)) * e) / 2.
 */
 
 void coo2csc(
-  uint32_t       * const row,
-  uint32_t       * const col,
-  uint32_t const * const row_coo,
-  uint32_t const * const col_coo,
-  uint32_t const         nnz,
-  uint32_t const         n,
-  uint32_t const         isOneBased
-) {
-
-  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
-
-
-  for (uint32_t l = 0; l < nnz; l++)
-    col[col_coo[l] - isOneBased]++;
-
-  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = cumsum;
-    cumsum += temp;
-  }
-  col[n] = nnz;
-
-  for (uint32_t l = 0; l < nnz; l++) {
-    uint32_t col_l;
-    col_l = col_coo[l] - isOneBased;
-
-    uint32_t dst = col[col_l];
-    row[dst] = row_coo[l] - isOneBased;
-
-    col[col_l]++;
-  }
-
-  for (uint32_t i = 0, last = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = last;
-    last = temp;
-  }
-
-}
+  uint32_t       * const row,       /*!< CSC row start indices */
+  uint32_t       * const col,       /*!< CSC column indices */
+  uint32_t const * const row_coo,   /*!< COO row indices */
+  uint32_t const * const col_coo,   /*!< COO column indices */
+  uint32_t const         nnz,       /*!< Number of nonzero elements */
+  uint32_t const         n,         /*!< Number of rows/columns */
+  uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
+);
 
 int main(int argc, char *argv[])
 {
-    
+
     FILE *f;
     double *val;
     int M, N, nz;
@@ -104,28 +73,27 @@ int main(int argc, char *argv[])
 
     if (!mm_is_pattern(matcode))
     {
-    for (uint32_t i=0; i<nz; i++)
-    {
-        fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
-        I[i]--;
-        J[i]--;
-        I[nz + i] = J[i];
-        J[nz + i] = I[i];
-    }
+      for (uint32_t i=0; i<nz; i++)
+      {
+          fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
+          I[i]--;
+          J[i]--;
+          I[nz + i] = J[i];
+          J[nz + i] = I[i];
+      }
     }
     else
     {
-    for (uint32_t i=0; i<nz; i++)
-    {
-        fscanf(f, "%d %d\n", &I[i], &J[i]);
-        val[i]=1;
-        I[i]--;
-        J[i]--;
-        I[nz + i] = J[i];
-        J[nz + i] = I[i];
+      for (uint32_t i=0; i<nz; i++)
+      {
+          fscanf(f, "%d %d\n", &I[i], &J[i]);
+          val[i]=1;
+          I[i]--;
+          J[i]--;
+          I[nz + i] = J[i];
+          J[nz + i] = I[i];
+      }
     }
-    }
-
 
     mm_write_banner(stdout, matcode);
     mm_write_mtx_crd_size(stdout, M, N, nz);
@@ -144,7 +112,7 @@ int main(int argc, char *argv[])
       masked_vals[i] = 0;
     }
 
-    /* Reserve memory and initialize the 3 following arrays: 
+    /* Reserve memory and initialize the 3 following arrays:
      * e_vector --> filled with ones
      * c3_vector --> triangles vector
      * result --> the result of the 3 multiplications
@@ -163,7 +131,6 @@ int main(int argc, char *argv[])
 
     //gettimeofday(&ts_start,NULL);
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-
 
     for(int i = 0; i < N; i++) {
 
@@ -212,7 +179,7 @@ int main(int argc, char *argv[])
 
     }
 
-    /* multiply with the ones vector using only the amount 
+    /* multiply with the ones vector using only the amount
      * of non zero elements
      */
     for(uint32_t i = 0; i < N; i++)
@@ -244,7 +211,7 @@ int main(int argc, char *argv[])
   	} else {
   	  elapsed_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
   	}
-        
+
     printf("\n   Total triangles: %d <---\n: ", total/3);
     printf("\n   Overall elapsed time: %f <---\n", elapsed_sec + (double)elapsed_nsec/1000000000);
 
@@ -260,4 +227,45 @@ int main(int argc, char *argv[])
     free(masked_vals);
 
   	return 0;
+}
+
+void coo2csc(
+  uint32_t       * const row,
+  uint32_t       * const col,
+  uint32_t const * const row_coo,
+  uint32_t const * const col_coo,
+  uint32_t const         nnz,
+  uint32_t const         n,
+  uint32_t const         isOneBased
+) {
+
+  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
+
+
+  for (uint32_t l = 0; l < nnz; l++)
+    col[col_coo[l] - isOneBased]++;
+
+  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = cumsum;
+    cumsum += temp;
+  }
+  col[n] = nnz;
+
+  for (uint32_t l = 0; l < nnz; l++) {
+    uint32_t col_l;
+    col_l = col_coo[l] - isOneBased;
+
+    uint32_t dst = col[col_l];
+    row[dst] = row_coo[l] - isOneBased;
+
+    col[col_l]++;
+  }
+
+  for (uint32_t i = 0, last = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = last;
+    last = temp;
+  }
+
 }
