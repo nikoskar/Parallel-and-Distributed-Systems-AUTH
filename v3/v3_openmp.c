@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "mmio.h"
+#include <omp.h>
+
+/* Parallel Implementation of V3 using OpenMP */
 
 /* This function converts a sparse matrix from its Coordinate list format (COO), to
  * to its Compressed sparce column format
@@ -15,41 +18,7 @@ void coo2csc(
   uint32_t const         nnz,       /*!< Number of nonzero elements */
   uint32_t const         n,         /*!< Number of rows/columns */
   uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
-) {
-
-  // ----- cannot assume that input is already 0!
-  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
-
-
-  // ----- find the correct column sizes
-  for (uint32_t l = 0; l < nnz; l++)
-    col[col_coo[l] - isOneBased]++;
-
-  // ----- cumulative sum
-  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = cumsum;
-    cumsum += temp;
-  }
-  col[n] = nnz;
-  // ----- copy the row indices to the correct place
-  for (uint32_t l = 0; l < nnz; l++) {
-    uint32_t col_l;
-    col_l = col_coo[l] - isOneBased;
-
-    uint32_t dst = col[col_l];
-    row[dst] = row_coo[l] - isOneBased;
-
-    col[col_l]++;
-  }
-  // ----- revert the column pointers
-  for (uint32_t i = 0, last = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = last;
-    last = temp;
-  }
-
-}
+);
 
 int main(int argc, char *argv[])
 {
@@ -98,7 +67,7 @@ int main(int argc, char *argv[])
     if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
         exit(1);
 
-    /* reseve memory for matrices */
+    /* reseve memory for the COO matrices */
 
     I = (uint32_t *) malloc(nz * sizeof(uint32_t));
     J = (int *) malloc(nz * sizeof(int));
@@ -114,24 +83,22 @@ int main(int argc, char *argv[])
     if (!mm_is_pattern(matcode))
     {
     for (i = 0; i < nz; i++)
-    {
-        fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
-        I[i]--;  /* adjust from 1-based to 0-based */
-        J[i]--;
-    }
+      {
+          fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
+          I[i]--;  /* adjust from 1-based to 0-based */
+          J[i]--;
+      }
     }
     else
     {
     for (i = 0; i < nz; i++)
-    {
-        fscanf(f, "%d %d\n", &I[i], &J[i]);
-        val[i]=1;
-        I[i]--;  /* adjust from 1-based to 0-based */
-        J[i]--;
+      {
+          fscanf(f, "%d %d\n", &I[i], &J[i]);
+          val[i]=1;
+          I[i]--;  /* adjust from 1-based to 0-based */
+          J[i]--;
+      }
     }
-    }
-
-
 
     if (f !=stdin) fclose(f);
 
@@ -170,9 +137,12 @@ int main(int argc, char *argv[])
 		}
 
     printf("\n***Triangle Counting has started***\n");
-		//gettimeofday(&ts_start,NULL);
 
+		//gettimeofday(&ts_start,NULL);
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
+
+    omp_set_num_threads(8);
     #pragma omp parallel
     {
       #pragma omp for schedule(dynamic)
@@ -234,6 +204,9 @@ int main(int argc, char *argv[])
   	} else {
   	  elapsed_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
   	}
+    //gettimeofday(&ts_end,NULL);
+		//double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
+    //printf("\n   Overall elapsed time: %f <---\n", elapsed);
 
     sum = 0;
     for (uint32_t i = 0; i < N; i++) {
@@ -242,10 +215,6 @@ int main(int argc, char *argv[])
     }
 
     printf("\n   Overall elapsed time: %f <---\n", elapsed_sec + (double)elapsed_nsec/1000000000);
-
-		//gettimeofday(&ts_end,NULL);
-		//double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
-
 		printf("\n   The total amount of triangles is: %d <---\n", sum/3);
 
     free(I);
@@ -255,4 +224,48 @@ int main(int argc, char *argv[])
     free(csc_col);
     free(csc_row);
     return 0;
+}
+
+void coo2csc(
+  uint32_t       * const row,       /*!< CSC row start indices */
+  uint32_t       * const col,       /*!< CSC column indices */
+  uint32_t const * const row_coo,   /*!< COO row indices */
+  uint32_t const * const col_coo,   /*!< COO column indices */
+  uint32_t const         nnz,       /*!< Number of nonzero elements */
+  uint32_t const         n,         /*!< Number of rows/columns */
+  uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
+) {
+
+  // ----- cannot assume that input is already 0!
+  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
+
+
+  // ----- find the correct column sizes
+  for (uint32_t l = 0; l < nnz; l++)
+    col[col_coo[l] - isOneBased]++;
+
+  // ----- cumulative sum
+  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = cumsum;
+    cumsum += temp;
+  }
+  col[n] = nnz;
+  // ----- copy the row indices to the correct place
+  for (uint32_t l = 0; l < nnz; l++) {
+    uint32_t col_l;
+    col_l = col_coo[l] - isOneBased;
+
+    uint32_t dst = col[col_l];
+    row[dst] = row_coo[l] - isOneBased;
+
+    col[col_l]++;
+  }
+  // ----- revert the column pointers
+  for (uint32_t i = 0, last = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = last;
+    last = temp;
+  }
+
 }
