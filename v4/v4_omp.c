@@ -4,6 +4,9 @@
 #include <time.h>
 #include "mmio.h"
 #include <omp.h>
+#include <sys/time.h>
+
+/* Parallel implementation of v4 using OpenMP */
 
 void coo2csc(
   uint32_t       * const row,       /*!< CSC row start indices */
@@ -13,41 +16,7 @@ void coo2csc(
   uint32_t const         nnz,       /*!< Number of nonzero elements */
   uint32_t const         n,         /*!< Number of rows/columns */
   uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
-) {
-
-  // ----- cannot assume that input is already 0!
-  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
-
-
-  // ----- find the correct column sizes
-  for (uint32_t l = 0; l < nnz; l++)
-    col[col_coo[l] - isOneBased]++;
-
-  // ----- cumulative sum
-  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = cumsum;
-    cumsum += temp;
-  }
-  col[n] = nnz;
-  // ----- copy the row indices to the correct place
-  for (uint32_t l = 0; l < nnz; l++) {
-    uint32_t col_l;
-    col_l = col_coo[l] - isOneBased;
-
-    uint32_t dst = col[col_l];
-    row[dst] = row_coo[l] - isOneBased;
-
-    col[col_l]++;
-  }
-  // ----- revert the column pointers
-  for (uint32_t i = 0, last = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = last;
-    last = temp;
-  }
-
-}
+);
 
 int main(int argc, char *argv[])
 {
@@ -57,12 +26,15 @@ int main(int argc, char *argv[])
     int M, N, nz;
     uint32_t *I, *J;
     double *val;
+    uint32_t sum;
+    long elapsed_sec, elapsed_nsec;
+    struct timespec ts_start, ts_end;
 
     if (argc < 2)
-	{
-		fprintf(stderr, "Usage: %s [martix-market-filename]\n", argv[0]);
-		exit(1);
-	}
+  	{
+  		fprintf(stderr, "Usage: %s [martix-market-filename]\n", argv[0]);
+  		exit(1);
+  	}
     else
     {
         if ((f = fopen(argv[1], "r")) == NULL)
@@ -104,26 +76,26 @@ int main(int argc, char *argv[])
 
     if (!mm_is_pattern(matcode))
     {
-    for (uint32_t i=0; i<nz; i++)
-    {
-        fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
-        I[i]--;  /* adjust from 1-based to 0-based */
-        J[i]--;
-        I[nz + i] = J[i];
-        J[nz + i] = I[i];
-    }
+      for (uint32_t i=0; i<nz; i++)
+      {
+          fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
+          I[i]--;  /* adjust from 1-based to 0-based */
+          J[i]--;
+          I[nz + i] = J[i];
+          J[nz + i] = I[i];
+      }
     }
     else
     {
-    for (uint32_t i=0; i<nz; i++)
-    {
-        fscanf(f, "%d %d\n", &I[i], &J[i]);
-        val[i]=1;
-        I[i]--;  /* adjust from 1-based to 0-based */
-        J[i]--;
-        I[nz + i] = J[i];
-        J[nz + i] = I[i];
-    }
+      for (uint32_t i=0; i<nz; i++)
+      {
+          fscanf(f, "%d %d\n", &I[i], &J[i]);
+          val[i]=1;
+          I[i]--;  /* adjust from 1-based to 0-based */
+          J[i]--;
+          I[nz + i] = J[i];
+          J[nz + i] = I[i];
+      }
     }
 
     /************************/
@@ -152,25 +124,32 @@ int main(int argc, char *argv[])
       masked_vals[i] = 0;
     }
 
-    //int count = 0, count1 = 0;
-    int sum;
-    int count = 0;
-    int flag = 1;
-    long elapsed_sec, elapsed_nsec;
-		struct timespec ts_start, ts_end;
+    /* ones vector, c3 vector and the final triangle vector */
+    uint32_t *e_vector = (malloc)(N * sizeof(uint32_t));
+    uint32_t *c3_vector = (malloc)(N * sizeof(uint32_t));
+    uint32_t *result = malloc(N * sizeof(uint32_t));
+
+    for(uint32_t i = 0; i < N; i++) {
+      e_vector[i] = 1 ; // guarantees no zeros
+      result[i] = 0;
+      c3_vector[i] = 0;
+    }
 
     printf("\n*** Triangle counting has now started ***\n");
 		/* Start counting triangles */
 		clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
   #pragma omp parallel
-  {/*we have default(shared) but default(none) is usefull if we want to debug */
-  /*We will use static scheduling  If we could predetermine and predict it then*/
-  /*it would propably be a good option to try static schedule too. Also, we need
-  to add the sum as a private variable. We must be careful because valiables listed in the private clause
-  are not initialized unless we make sure for they do. We dont need to include the
-  shared variables (csc_col for example) because they are by default shared among the
-  threads.*/
+  {
+    /*
+     we have default(shared) but default(none) is usefull if we want to debug
+     We will use static scheduling. If we could predetermine and predict it then
+     it would propably be a good option to try static schedule too. Also, we need
+     to add the sum as a private variable. We must be careful because valiables listed in the private clause
+     are not initialized unless we make sure for they do. We dont need to include the
+     shared variables (csc_col for example) because they are by default shared among the
+     threads.
+     */
     //omp_set_nested(1);
     #pragma omp for schedule(dynamic) private(sum)
 
@@ -227,16 +206,6 @@ int main(int argc, char *argv[])
   }
 
 
-    /* vector array */
-    uint32_t *e_vector = (malloc)(N * sizeof(uint32_t));
-    uint32_t *c3_vector = (malloc)(N * sizeof(uint32_t));
-    uint32_t *result = malloc(N * sizeof(uint32_t));
-
-    for(uint32_t i = 0; i < N; i++) {
-      e_vector[i] = 1 ; // guarantees no zeros
-      result[i] = 0;
-      c3_vector[i] = 0;
-    }
 
     for(uint32_t i = 0; i < N; i++)
     {
@@ -253,18 +222,15 @@ int main(int argc, char *argv[])
 
 
     uint32_t total = 0;
-    //#pragma omp parallel
-  //  #pragma omp for schedule(static) reduction(+:total)
+      //#pragma omp parallel
+      //#pragma omp for schedule(static) reduction(+:total)
       for(uint32_t i = 0; i < N; i++) {
-      //  #pragma omp critical
+        //#pragma omp critical
         c3_vector[i] = result[i]/2;
         total += c3_vector[i];
       }
 
     printf("\n*** Total triangles: %d ***\n: ", total/3);
-
-
-
 
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
@@ -289,4 +255,48 @@ int main(int argc, char *argv[])
     free(masked_vals);
 
   	return 0;
+}
+
+void coo2csc(
+  uint32_t       * const row,       /*!< CSC row start indices */
+  uint32_t       * const col,       /*!< CSC column indices */
+  uint32_t const * const row_coo,   /*!< COO row indices */
+  uint32_t const * const col_coo,   /*!< COO column indices */
+  uint32_t const         nnz,       /*!< Number of nonzero elements */
+  uint32_t const         n,         /*!< Number of rows/columns */
+  uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
+) {
+
+  // ----- cannot assume that input is already 0!
+  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
+
+
+  // ----- find the correct column sizes
+  for (uint32_t l = 0; l < nnz; l++)
+    col[col_coo[l] - isOneBased]++;
+
+  // ----- cumulative sum
+  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = cumsum;
+    cumsum += temp;
+  }
+  col[n] = nnz;
+  // ----- copy the row indices to the correct place
+  for (uint32_t l = 0; l < nnz; l++) {
+    uint32_t col_l;
+    col_l = col_coo[l] - isOneBased;
+
+    uint32_t dst = col[col_l];
+    row[dst] = row_coo[l] - isOneBased;
+
+    col[col_l]++;
+  }
+  // ----- revert the column pointers
+  for (uint32_t i = 0, last = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = last;
+    last = temp;
+  }
+
 }
