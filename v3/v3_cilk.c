@@ -7,6 +7,8 @@
 #include <cilk/cilk.h>
 #include <cilk/cilk_api.h>
 
+/* Parallel Implementation of V3 using OpenCilk */
+
 void coo2csc(
   uint32_t       * const row,       /*!< CSC row start indices */
   uint32_t       * const col,       /*!< CSC column indices */
@@ -15,41 +17,7 @@ void coo2csc(
   uint32_t const         nnz,       /*!< Number of nonzero elements */
   uint32_t const         n,         /*!< Number of rows/columns */
   uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
-) {
-
-  // ----- cannot assume that input is already 0!
-  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
-
-
-  // ----- find the correct column sizes
-  for (uint32_t l = 0; l < nnz; l++)
-    col[col_coo[l] - isOneBased]++;
-
-  // ----- cumulative sum
-  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = cumsum;
-    cumsum += temp;
-  }
-  col[n] = nnz;
-  // ----- copy the row indices to the correct place
-  for (uint32_t l = 0; l < nnz; l++) {
-    uint32_t col_l;
-    col_l = col_coo[l] - isOneBased;
-
-    uint32_t dst = col[col_l];
-    row[dst] = row_coo[l] - isOneBased;
-
-    col[col_l]++;
-  }
-  // ----- revert the column pointers
-  for (uint32_t i = 0, last = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = last;
-    last = temp;
-  }
-
-}
+);
 
 int main(int argc, char *argv[])
 {
@@ -59,14 +27,16 @@ int main(int argc, char *argv[])
     double *val;
 		int ret_code;
 		MM_typecode matcode;
-		struct timeval ts_start, ts_end;
+    long elapsed_sec, elapsed_nsec;
+		struct timespec ts_start, ts_end;
+		//struct timeval ts_start, ts_end;
 
 
     if (argc < 2)
-	{
+	   {
 		fprintf(stderr, "Usage: %s [martix-market-filename]\n", argv[0]);
 		exit(1);
-	}
+  	}
     else
     {
         if ((f = fopen(argv[1], "r")) == NULL)
@@ -111,22 +81,22 @@ int main(int argc, char *argv[])
 
     if (!mm_is_pattern(matcode))
     {
-    for (i=0; i<nz; i++)
-    {
-        fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
-        I[i]--;  /* adjust from 1-based to 0-based */
-        J[i]--;
-    }
+      for (i=0; i<nz; i++)
+      {
+          fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
+          I[i]--;  /* adjust from 1-based to 0-based */
+          J[i]--;
+      }
     }
     else
     {
-    for (i=0; i<nz; i++)
-    {
-        fscanf(f, "%d %d\n", &I[i], &J[i]);
-        val[i]=1;
-        I[i]--;  /* adjust from 1-based to 0-based */
-        J[i]--;
-    }
+      for (i=0; i<nz; i++)
+      {
+          fscanf(f, "%d %d\n", &I[i], &J[i]);
+          val[i]=1;
+          I[i]--;  /* adjust from 1-based to 0-based */
+          J[i]--;
+      }
     }
 
 
@@ -164,6 +134,7 @@ int main(int argc, char *argv[])
 			c3[i] = 0;
 		}
 
+    __cilkrts_set_param("nworkers","8");
 		int numWorkers = __cilkrts_get_nworkers();
     printf("number of workers to %d.\n",numWorkers);
 
@@ -171,7 +142,9 @@ int main(int argc, char *argv[])
 		pthread_mutex_init(&mutex1, NULL);
 
     printf("\n***Now we start counting triangles***\n");
-		gettimeofday(&ts_start,NULL);
+
+		//gettimeofday(&ts_start,NULL);
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
     cilk_for(uint32_t j = 0; j < N - 1; j++) {
 
@@ -191,7 +164,7 @@ int main(int argc, char *argv[])
 			}
 			//printf("\n\n");
 
-      for(uint32_t i = start; i < end; i++) {
+      cilk_for(uint32_t i = start; i < end; i++) {
 
         uint32_t start1 = csc_col[csc_row[i]];
         uint32_t end1 = csc_col[csc_row[i] + 1];
@@ -216,7 +189,6 @@ int main(int argc, char *argv[])
         }
       }
 			free(log);
-
     }
 
 		int sum = 0;
@@ -225,64 +197,73 @@ int main(int argc, char *argv[])
 			sum += c3[i];
 		}
 
-		gettimeofday(&ts_end,NULL);
-		double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
 
-		printf("\nOverall elapsed time: %f\n", elapsed);
-		printf("all are %d\n", sum/3);
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    elapsed_sec = ts_end.tv_sec - ts_start.tv_sec;
+
+    if ((ts_end.tv_nsec - ts_start.tv_nsec) < 0) {
+    	 elapsed_nsec = 1000000000 + ts_end.tv_nsec - ts_start.tv_nsec;
+  	} else {
+  	  elapsed_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
+  	}
+
+    printf("\n   Overall elapsed time: %f <---\n", elapsed_sec + (double)elapsed_nsec/1000000000);
+    printf("\n   The total amount of triangles is: %d <---\n\n", sum/3);
+
+		// gettimeofday(&ts_end,NULL);
+		// double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
+
+    free(I);
+    free(J);
 		free(c3);
+    free(val);
+    free(csc_col);
+    free(csc_row);
 
-
-
-	return 0;
+    return 0;
 }
 
 
+void coo2csc(
+  uint32_t       * const row,       /*!< CSC row start indices */
+  uint32_t       * const col,       /*!< CSC column indices */
+  uint32_t const * const row_coo,   /*!< COO row indices */
+  uint32_t const * const col_coo,   /*!< COO column indices */
+  uint32_t const         nnz,       /*!< Number of nonzero elements */
+  uint32_t const         n,         /*!< Number of rows/columns */
+  uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
+) {
+
+  // ----- cannot assume that input is already 0!
+  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
 
 
-/*
+  // ----- find the correct column sizes
+  for (uint32_t l = 0; l < nnz; l++)
+    col[col_coo[l] - isOneBased]++;
 
+  // ----- cumulative sum
+  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = cumsum;
+    cumsum += temp;
+  }
+  col[n] = nnz;
+  // ----- copy the row indices to the correct place
+  for (uint32_t l = 0; l < nnz; l++) {
+    uint32_t col_l;
+    col_l = col_coo[l] - isOneBased;
 
+    uint32_t dst = col[col_l];
+    row[dst] = row_coo[l] - isOneBased;
 
+    col[col_l]++;
+  }
+  // ----- revert the column pointers
+  for (uint32_t i = 0, last = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = last;
+    last = temp;
+  }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-*/
+}
