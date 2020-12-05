@@ -3,12 +3,13 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "mmio.h"
+//#include <sys/time.h>
 
-/* The following program reads an undirected, unweighted random graph (Matrix Market file format), 
- * represented by its adjacency matrix (sparse) and counts the triangles incident with each node 
+
+/* The following program reads an undirected, unweighted random graph (Matrix Market file format),
+ * represented by its adjacency matrix (sparse) and counts the triangles incident with each node
  * using a triple loop check
 */
-
 
 /* This function converts a sparse matrix from its Coordinate list format (COO), to
  * to its Compressed sparce column format
@@ -21,41 +22,7 @@ void coo2csc(
   uint32_t const         nnz,       /*!< Number of nonzero elements */
   uint32_t const         n,         /*!< Number of rows/columns */
   uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
-) {
-
-  // ----- cannot assume that input is already 0!
-  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
-
-
-  // ----- find the correct column sizes
-  for (uint32_t l = 0; l < nnz; l++)
-    col[col_coo[l] - isOneBased]++;
-
-  // ----- cumulative sum
-  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = cumsum;
-    cumsum += temp;
-  }
-  col[n] = nnz;
-  // ----- copy the row indices to the correct place
-  for (uint32_t l = 0; l < nnz; l++) {
-    uint32_t col_l;
-    col_l = col_coo[l] - isOneBased;
-
-    uint32_t dst = col[col_l];
-    row[dst] = row_coo[l] - isOneBased;
-
-    col[col_l]++;
-  }
-  // ----- revert the column pointers
-  for (uint32_t i = 0, last = 0; i < n; i++) {
-    uint32_t temp = col[i];
-    col[i] = last;
-    last = temp;
-  }
-
-}
+);
 
 int main(int argc, char *argv[])
 {
@@ -176,11 +143,11 @@ int main(int argc, char *argv[])
 		}
 
     printf("\n***Triangle Counting has started***\n");
-		//gettimeofday(&ts_start,NULL);
 
+	  //gettimeofday(&ts_start,NULL);
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
- 
+
     /* Triangle Counting */
     for(uint32_t j = 0; j < N - 1; j++) {
 
@@ -200,7 +167,7 @@ int main(int argc, char *argv[])
 			//printf("\n");
 
       for(uint32_t i = start; i < end; i++) {
-        
+
         uint32_t start1 = csc_col[csc_row[i]];
         uint32_t end1 = csc_col[csc_row[i] + 1];
 				//printf("in i = %d with start = %d and end = %d", i, start1, end1);
@@ -224,6 +191,11 @@ int main(int argc, char *argv[])
 			free(log);
     }
 
+    // gettimeofday(&ts_end,NULL);
+    // double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
+    //
+    // printf("\n   Overall elapsed time: %f <---\n", elapsed);
+
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
     elapsed_sec = ts_end.tv_sec - ts_start.tv_sec;
 
@@ -240,11 +212,7 @@ int main(int argc, char *argv[])
     }
 
     printf("\n   Overall elapsed time: %f <---\n", elapsed_sec + (double)elapsed_nsec/1000000000);
-
-		//gettimeofday(&ts_end,NULL);
-		//double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
-
-		printf("\n   The total amount of triangles is: %d <---\n", sum/3);
+		printf("\n   The total amount of triangles is: %d <---\n\n", sum/3);
 
     free(I);
     free(J);
@@ -253,4 +221,48 @@ int main(int argc, char *argv[])
     free(csc_col);
     free(csc_row);
     return 0;
+}
+
+void coo2csc(
+  uint32_t       * const row,       /*!< CSC row start indices */
+  uint32_t       * const col,       /*!< CSC column indices */
+  uint32_t const * const row_coo,   /*!< COO row indices */
+  uint32_t const * const col_coo,   /*!< COO column indices */
+  uint32_t const         nnz,       /*!< Number of nonzero elements */
+  uint32_t const         n,         /*!< Number of rows/columns */
+  uint32_t const         isOneBased /*!< Whether COO is 0- or 1-based */
+) {
+
+  // ----- cannot assume that input is already 0!
+  for (uint32_t l = 0; l < n+1; l++) col[l] = 0;
+
+
+  // ----- find the correct column sizes
+  for (uint32_t l = 0; l < nnz; l++)
+    col[col_coo[l] - isOneBased]++;
+
+  // ----- cumulative sum
+  for (uint32_t i = 0, cumsum = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = cumsum;
+    cumsum += temp;
+  }
+  col[n] = nnz;
+  // ----- copy the row indices to the correct place
+  for (uint32_t l = 0; l < nnz; l++) {
+    uint32_t col_l;
+    col_l = col_coo[l] - isOneBased;
+
+    uint32_t dst = col[col_l];
+    row[dst] = row_coo[l] - isOneBased;
+
+    col[col_l]++;
+  }
+  // ----- revert the column pointers
+  for (uint32_t i = 0, last = 0; i < n; i++) {
+    uint32_t temp = col[i];
+    col[i] = last;
+    last = temp;
+  }
+
 }
