@@ -25,18 +25,18 @@ int main(int argc, char *argv[])
     uint32_t M, N, nz;
     uint32_t i, *I, *J;
     double *val;
-    int ret_code;
-    MM_typecode matcode;
+		int ret_code;
+		MM_typecode matcode;
     long elapsed_sec, elapsed_nsec;
-    struct timespec ts_start, ts_end;
-    //struct timeval ts_start, ts_end;
+		struct timespec ts_start, ts_end;
+		//struct timeval ts_start, ts_end;
 
 
     if (argc < 2)
-    {
- 	fprintf(stderr, "Usage: %s [martix-market-filename]\n", argv[0]);
-	exit(1);
-    }
+	   {
+		fprintf(stderr, "Usage: %s [martix-market-filename]\n", argv[0]);
+		exit(1);
+  	}
     else
     {
         if ((f = fopen(argv[1], "r")) == NULL)
@@ -129,33 +129,33 @@ int main(int argc, char *argv[])
     //   printf("%d, ", csc_col[i]);
     // }
 
-    uint32_t *c3 = malloc(N*sizeof(uint32_t));
-    for (uint32_t i = 0; i < N; i++) {
-	c3[i] = 0;
-    }
+		uint32_t *c3 = malloc(N*sizeof(uint32_t));
+		for (uint32_t i = 0; i < N; i++) {
+			c3[i] = 0;
+		}
 
-    //__cilkrts_set_param("nworkers","8");
-    int numWorkers = __cilkrts_get_nworkers();
+    __cilkrts_set_param("nworkers","8");
+		int numWorkers = __cilkrts_get_nworkers();
     printf("number of workers to %d.\n",numWorkers);
 
-    pthread_mutex_t mutex1;
-    pthread_mutex_init(&mutex1, NULL);
+		pthread_mutex_t mutex1;
+		pthread_mutex_init(&mutex1, NULL);
 
     printf("\n***Now we start counting triangles***\n");
 
-    //gettimeofday(&ts_start,NULL);
+		//gettimeofday(&ts_start,NULL);
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
     cilk_for(uint32_t j = 0; j < N - 1; j++) {
 
       uint32_t start = csc_col[j];
       uint32_t end = csc_col[j + 1];
-      uint32_t idx = 0;
-      uint32_t size = end - start;
+			uint32_t idx = 0;
+			uint32_t size = end - start;
 
-      uint32_t *log = malloc(size*sizeof(uint32_t));
+			uint32_t *log = malloc(size*sizeof(uint32_t));
 
-      //printf("\n\n");
+			//printf("\n\n");
 
 			for(uint32_t pos = start; pos < end; pos++) {
 				log[idx] = csc_row[pos];
