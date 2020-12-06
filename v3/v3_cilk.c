@@ -143,7 +143,14 @@ int main(int argc, char *argv[])
 
     printf("\n***Now we start counting triangles***\n");
 
-		//gettimeofday(&ts_start,NULL);
+	
+    /*
+    	if you are running this locally you should be able to use clock_gettime without issues. In case you face problems
+	with that, we have added gettimeofday. Just uncomment ---> //struct timeval ts_start, ts_end; <--- and the 
+	gettimeofday commands. Finally comment out any clock_gettime implementation
+    
+    */
+    //gettimeofday(&ts_start,NULL);
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
     cilk_for(uint32_t j = 0; j < N - 1; j++) {
