@@ -29,6 +29,7 @@ int main(int argc, char *argv[])
     uint32_t sum;
     long elapsed_sec, elapsed_nsec;
     struct timespec ts_start, ts_end;
+    //struct timeval ts_start, ts_end;
 
     if (argc < 2)
   	{
@@ -137,6 +138,7 @@ int main(int argc, char *argv[])
 
     printf("\n*** Triangle counting has now started ***\n");
 		/* Start counting triangles */
+    //gettimeofday(&ts_start,NULL);
 		clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
   #pragma omp parallel
@@ -244,6 +246,10 @@ int main(int argc, char *argv[])
 		}
 
 		printf("\nOverall elapsed time: %f\n", elapsed_sec + (double)elapsed_nsec/1000000000);
+
+    // gettimeofday(&ts_end,NULL);
+    // double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
+		// printf("\nOverall elapsed time: %f\n", elapsed);
 
     free(I);
     free(J);

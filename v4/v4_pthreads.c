@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
     uint32_t M, N, nz, sum;
     long elapsed_sec, elapsed_nsec;
     struct timespec ts_start, ts_end;
-		struct timeval ts_start, ts_end;
+		//struct timeval ts_start, ts_end;
 
     if (argc < 2)
 	  {
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
 
     printf("\n*** Triangle counting has now started ***\n");
 
-    /* In this case we need to pareallelize the algorithm with pthreads. In this
+    /* In this case we need to parallelize the algorithm with pthreads. In this
      * case the code structure depends heavily upon the number of threads. We
      * fire up threads by invokind funcitons so in this case we need to port the
      * triangle counter into a function. In order to parallelize the execution
@@ -188,7 +188,6 @@ int main(int argc, char *argv[])
       arr_info_single.i_end = N;
       arr_info_single.masked_vals = masked_vals;
       //arr_info[i].id = i;
-      printf("\n***************test**********************\n");
       //printf("in main with index start: %d, end:  %d\n",arr_info[i].i_start, arr_info[i].i_end );
 
       rc = pthread_create(&threads[0], &attr, sparseSelfProduct, &arr_info_single);

@@ -28,7 +28,9 @@ int main(int argc, char *argv[])
     uint32_t *I, *J;
     uint32_t M, N, nz;
     MM_typecode matcode;
-    struct timeval ts_start, ts_end;
+    long elapsed_sec, elapsed_nsec;
+    struct timespec ts_start, ts_end;
+    //struct timeval ts_start, ts_end;
 
 
     if (argc < 2)
@@ -116,6 +118,7 @@ int main(int argc, char *argv[])
       c3_vector[i] = 0;
     }
 
+    __cilkrts_set_param("nworkers","12");
     int numWorkers = __cilkrts_get_nworkers();
     printf("\n*** Currently using %d workers ***.\n", numWorkers);
 
@@ -126,7 +129,8 @@ int main(int argc, char *argv[])
     pthread_mutex_init(&mutex1, NULL);
     pthread_mutex_init(&mutex2, NULL);
 
-    gettimeofday(&ts_start,NULL);
+    //gettimeofday(&ts_start,NULL);
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
     cilk_for(uint32_t i = 0; i < N; i++) {
 
@@ -199,10 +203,20 @@ int main(int argc, char *argv[])
       pthread_mutex_unlock(&mutex1);
     }
 
-    gettimeofday(&ts_end,NULL);
-    double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
+    // gettimeofday(&ts_end,NULL);
+    // double elapsed = (ts_end.tv_sec + (double)ts_end.tv_usec / 1000000) - (ts_start.tv_sec + (double)ts_start.tv_usec / 1000000);
+		// printf("\nOverall elapsed time: %f\n", elapsed);
 
-		printf("\nOverall elapsed time: %f\n", elapsed);
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    elapsed_sec = ts_end.tv_sec - ts_start.tv_sec;
+
+    if ((ts_end.tv_nsec - ts_start.tv_nsec) < 0) {
+       elapsed_nsec = 1000000000 + ts_end.tv_nsec - ts_start.tv_nsec;
+    } else {
+      elapsed_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
+    }
+
+    printf("\n   Overall elapsed time: %f <---\n", elapsed_sec + (double)elapsed_nsec/1000000000);
 
     printf("\n*** Total triangles: %d ***\n: ", total/3);
 
