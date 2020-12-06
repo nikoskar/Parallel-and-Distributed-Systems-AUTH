@@ -36,6 +36,6 @@ v4_pthreads.o: v4_pthreads.c
 
 mmio.o: mmio.c mmio.h
 	gcc -c mmio.c
-
+ 
 clean:
 	rm *.o v3serial v3cilk v3omp v4serial v4cilk v4omp v4pthreads
